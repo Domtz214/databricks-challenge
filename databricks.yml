@@ -14,6 +14,7 @@ variables:
     default: triage
   warehouse_id:
     description: SQL warehouse id (SQL Warehouses -> your warehouse -> Overview)
+    default: "7474644806266622"   # Serverless Starter Warehouse
 
 targets:
   dev:

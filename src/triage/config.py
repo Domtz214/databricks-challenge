@@ -39,7 +39,9 @@ EMBEDDING_ENDPOINT = _env("TRIAGE_EMBEDDING_ENDPOINT", "databricks-gte-large-en"
 # --- Vector Search -----------------------------------------------------------
 VS_ENDPOINT = _env("TRIAGE_VS_ENDPOINT", "triage-vs")
 VS_INDEX = fq("guidance_chunks_index")
-USE_VECTOR_SEARCH = _env("TRIAGE_USE_VECTOR_SEARCH", "true").lower() == "true"
+# Off by default: this workspace has no Vector Search, so search_guidance uses
+# SQL cosine similarity over guidance_chunks.embedding (fine for a few thousand chunks).
+USE_VECTOR_SEARCH = _env("TRIAGE_USE_VECTOR_SEARCH", "false").lower() == "true"
 
 # --- Geospatial --------------------------------------------------------------
 H3_RES_INCIDENT = 9   # ~0.1 km^2 cells: one "incident" = same cell + category

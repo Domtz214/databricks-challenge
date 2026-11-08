@@ -8,7 +8,7 @@
 
 # COMMAND ----------
 
-# MAGIC %pip install -q databricks-vectorsearch openai
+# MAGIC %pip install -q openai
 # MAGIC %restart_python
 
 # COMMAND ----------

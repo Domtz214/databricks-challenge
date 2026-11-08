@@ -30,7 +30,7 @@ Ordered by the critical path. `grep -rn "TODO(you)" .` lists every code-level TO
 
 ## Phase 3: agent (≈3 h)
 - [ ] Download 3–6 guidance PDFs → `reference/guidance/`; run `07_guidance_index`
-      (or use **Agents → Knowledge Assistant** and point `search_guidance` at it).
+      (no Vector Search here: retrieval is SQL cosine similarity over `guidance_chunks`).
 - [ ] Try the dispatcher prompt in **Playground** with your LLM endpoint; adjust `agent/prompts.py`.
 - [ ] `09_agent_eval`: get valid-JSON rate ≈100%; screenshot an MLflow trace for the video.
 - [ ] Photo assessment: confirm the vision endpoint accepts images (Playground → upload image).
