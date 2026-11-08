@@ -8,8 +8,8 @@ Ordered by the critical path. `grep -rn "TODO(you)" .` lists every code-level TO
       `databricks-gte-large-en`, a Llama/Claude chat model, and a vision-capable model? Update `src/triage/config.py`.
 - [ ] Create a SQL warehouse (or use the starter one); note its ID.
 - [ ] Git folder + `00_setup` + pipeline (README quick start). Confirm `gold_priority_queue` has rows.
-- [ ] If the pipeline can't `import triage` on workers: package `src/` as a wheel and add it to the pipeline
-      environment (see `_ensure_src` in `pipelines/triage_pipeline.py`).
+- [ ] The pipeline imports `triage` from the `code` volume (pipeline compute can't read /Workspace .py files).
+      **After any change in `src/`, rerun the "Sync shared code" cell in `00_setup`.**
 
 ## Phase 1: data (≈4 h)
 - [ ] Download everything in `docs/data_sources.md`, upload to the `reference` volume.

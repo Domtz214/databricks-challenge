@@ -28,6 +28,7 @@ LANDING_ALERTS = f"{VOLUME_ROOT}/landing/alerts"
 LANDING_GAUGES = f"{VOLUME_ROOT}/landing/gauges"
 REFERENCE_DIR = f"{VOLUME_ROOT}/reference"           # manual downloads (CSV/TSV/PDF)
 PHOTOS_DIR = f"{VOLUME_ROOT}/photos"                 # uploaded report photos
+CODE_DIR = f"{VOLUME_ROOT}/code"                     # copy of src/ for the pipeline
 
 # --- Model endpoints (check names in Playground / Serving) -------------------
 # TODO(you): confirm these exist in your workspace (Serving -> Foundation models).

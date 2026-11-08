@@ -37,7 +37,7 @@ resources:
       configuration:
         triage.catalog: ${var.catalog}
         triage.schema: ${var.schema}
-        triage.src_path: ${workspace.file_path}/src
+        triage.src_path: /Volumes/${var.catalog}/${var.schema}/code   # filled by notebook 00
         triage.classifier_mode: keywords   # keywords | ai_functions | model
         triage.now_mode: replay            # replay (Harvey) | wall (live)
 

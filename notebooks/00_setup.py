@@ -18,13 +18,26 @@ print(config.CATALOG, config.SCHEMA)
 # COMMAND ----------
 
 spark.sql(f"CREATE SCHEMA IF NOT EXISTS {config.CATALOG}.{config.SCHEMA}")
-for vol in ["landing", "reference", "photos"]:
+for vol in ["landing", "reference", "photos", "code"]:
     spark.sql(f"CREATE VOLUME IF NOT EXISTS {config.CATALOG}.{config.SCHEMA}.{vol}")
 
 for d in [config.LANDING_REPORTS, config.LANDING_ALERTS, config.LANDING_GAUGES,
           f"{config.REFERENCE_DIR}/humaid", f"{config.REFERENCE_DIR}/svi", f"{config.REFERENCE_DIR}/census",
           f"{config.REFERENCE_DIR}/facilities", f"{config.REFERENCE_DIR}/guidance"]:
     dbutils.fs.mkdirs(d)
+
+# COMMAND ----------
+
+# MAGIC %md ### Sync shared code to a volume (the pipeline imports `triage` from here)
+# MAGIC **Rerun this cell whenever anything in `src/` changes.**
+
+# COMMAND ----------
+
+import shutil
+dst = f"{config.CODE_DIR}/triage"
+shutil.rmtree(dst, ignore_errors=True)
+shutil.copytree(os.path.abspath("../src/triage"), dst, ignore=shutil.ignore_patterns("__pycache__"))
+print("synced ->", dst, sorted(os.listdir(dst)))
 
 # COMMAND ----------
 

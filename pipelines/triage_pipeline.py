@@ -31,16 +31,20 @@ CATALOG = spark.conf.get("triage.catalog", "workspace")  # noqa: F821  (spark is
 SCHEMA = spark.conf.get("triage.schema", "triage")  # noqa: F821
 CLASSIFIER_MODE = spark.conf.get("triage.classifier_mode", "keywords")  # noqa: F821
 NOW_MODE = spark.conf.get("triage.now_mode", "replay")  # noqa: F821
-SRC_PATH = spark.conf.get("triage.src_path")  # noqa: F821
+# Shared code is read from a UC volume (notebook 00 copies src/ there). Pipeline
+# compute cannot reliably read Python files from /Workspace, but volumes work on
+# the driver and on workers.
+SRC_PATH = spark.conf.get("triage.src_path", f"/Volumes/{CATALOG}/{SCHEMA}/code")  # noqa: F821
+sys.dont_write_bytecode = True  # don't try to write __pycache__ next to the code
 sys.path.append(SRC_PATH)
 
 
 def _ensure_src():
     """UDFs execute on workers, which need the same sys.path entry.
-    TODO(you): if `import triage` fails on workers, build src/ as a wheel and add
-    it under the pipeline's environment dependencies instead."""
+    If code changes, rerun the "sync shared code" cell in notebook 00."""
     import sys as _sys
 
+    _sys.dont_write_bytecode = True
     if SRC_PATH not in _sys.path:
         _sys.path.append(SRC_PATH)
 
