@@ -1,0 +1,80 @@
+# Databricks Asset Bundle: deploys the pipeline, jobs and app in one command.
+#   databricks bundle validate
+#   databricks bundle deploy            (run scripts/sync_app.sh first)
+#   databricks bundle run triage_pipeline
+# No CLI? Everything here can also be created by hand in the UI (see README "UI path").
+
+bundle:
+  name: triage
+
+variables:
+  catalog:
+    default: workspace
+  schema:
+    default: triage
+  warehouse_id:
+    description: SQL warehouse id (SQL Warehouses -> your warehouse -> Overview)
+
+targets:
+  dev:
+    mode: development
+    default: true
+    workspace:
+      host: https://REPLACE-ME.cloud.databricks.com   # TODO(you)
+
+resources:
+  pipelines:
+    triage_pipeline:
+      name: triage-pipeline
+      catalog: ${var.catalog}
+      schema: ${var.schema}
+      serverless: true
+      continuous: false        # flip to true while recording the video for second-level freshness
+      channel: CURRENT
+      libraries:
+        - file:
+            path: ./pipelines/triage_pipeline.py
+      configuration:
+        triage.catalog: ${var.catalog}
+        triage.schema: ${var.schema}
+        triage.src_path: ${workspace.file_path}/src
+        triage.classifier_mode: keywords   # keywords | ai_functions | model
+        triage.now_mode: replay            # replay (Harvey) | wall (live)
+
+  jobs:
+    live_feeds:
+      name: triage-live-feeds
+      schedule:
+        quartz_cron_expression: "0 0/10 * * * ?"
+        timezone_id: America/Chicago
+        pause_status: PAUSED   # unpause when you want live data flowing
+      tasks:
+        - task_key: poll
+          notebook_task:
+            notebook_path: ./notebooks/04_poll_live_feeds.py
+        - task_key: refresh_pipeline
+          depends_on: [{task_key: poll}]
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.triage_pipeline.id}
+
+    harvey_replay:
+      name: triage-harvey-replay
+      tasks:
+        - task_key: replay
+          notebook_task:
+            notebook_path: ./notebooks/03_replay_stream.py
+            base_parameters:
+              mode: harvey
+              seconds_between_batches: "5"
+              trigger_pipeline_every: "6"
+
+  apps:
+    triage_app:
+      name: triage-console
+      description: Predictive disaster triage console
+      source_code_path: ./app
+      resources:
+        - name: sql-warehouse
+          sql_warehouse:
+            id: ${var.warehouse_id}
+            permission: CAN_USE

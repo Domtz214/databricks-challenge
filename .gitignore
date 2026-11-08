@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+.databricks/
+# copied in by scripts/sync_app.sh at deploy time
+app/triage/
+.DS_Store

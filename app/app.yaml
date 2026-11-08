@@ -1,0 +1,14 @@
+command: ["streamlit", "run", "app.py"]
+env:
+  - name: DATABRICKS_WAREHOUSE_ID
+    valueFrom: sql-warehouse        # resource key defined in databricks.yml / the App UI
+  - name: TRIAGE_CATALOG
+    value: workspace
+  - name: TRIAGE_SCHEMA
+    value: triage
+  - name: TRIAGE_PIPELINE_NAME
+    value: triage-pipeline
+  - name: TRIAGE_GENIE_URL          # TODO(you): paste your Genie space URL
+    value: ""
+  - name: STREAMLIT_BROWSER_GATHER_USAGE_STATS
+    value: "false"
