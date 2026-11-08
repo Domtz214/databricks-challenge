@@ -55,6 +55,7 @@ class RealBackend:
 
         self.db = WarehouseSql()
         self._cache: dict = {}
+        self._shared: set = set()
         self.ensure_tables()
 
     def clear_cache(self):
@@ -72,6 +73,18 @@ class RealBackend:
                 diagnosis_json STRING, decision STRING, decided_by STRING, decided_at TIMESTAMP)""")
         except Exception as e:  # app SP may lack CREATE; setup notebook creates them too
             print("ensure_tables:", e)
+
+    def share_tables_with(self, user: str) -> None:
+        """If the app created these tables, its service principal owns them and humans can't read them
+        (e.g. in Genie). Grant the signed-in user read access. No-op/ignored when the user already owns them."""
+        if not user or "@" not in user or user in self._shared:
+            return
+        for t in ("diagnoses", "incidents"):
+            try:
+                self.db.execute(f"GRANT SELECT ON TABLE {fq(t)} TO `{user}`")
+            except Exception as e:
+                print(f"share {t} with {user}: {str(e)[:120]}")
+        self._shared.add(user)
 
     @_ttl(15)
     def diagnoses(self) -> list[dict]:

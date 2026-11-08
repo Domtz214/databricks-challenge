@@ -59,7 +59,16 @@ else:
 
 # COMMAND ----------
 
-# 4. Unity Catalog: the doctor schema (read/write + create tables)
+# 4. Unity Catalog: the doctor schema (read/write + create tables).
+# Create the app's tables as YOU first, so you own them (Genie, notebooks) and the app writes via grants.
+fq_ = lambda n: f"{config.CATALOG}.{config.SCHEMA}.{n}"
+step("table diagnoses (owned by you)", lambda: spark.sql(f"""CREATE TABLE IF NOT EXISTS {fq_('diagnoses')} (
+    run_id BIGINT, job_id BIGINT, run_name STRING, failed_at TIMESTAMP, diagnosed_at TIMESTAMP,
+    category STRING, summary STRING, confidence DOUBLE, fix_verified BOOLEAN, fix_location STRING,
+    diagnosis_json STRING, trace_json STRING)"""))
+me = spark.sql("SELECT current_user()").first()[0]
+for t in ("diagnoses", "incidents"):  # if the app already created one, try to take ownership back
+    step(f"you own {t}", lambda t=t: spark.sql(f"ALTER TABLE {fq_(t)} OWNER TO `{me}`"))
 for g in [f"GRANT USE CATALOG ON CATALOG {config.CATALOG} TO `{sp}`",
           f"GRANT USE SCHEMA, SELECT, MODIFY, CREATE TABLE ON SCHEMA {config.CATALOG}.{config.SCHEMA} TO `{sp}`"]:
     step(g, lambda g=g: spark.sql(g))

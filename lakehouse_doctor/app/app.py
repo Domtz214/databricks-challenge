@@ -30,6 +30,7 @@ nav = st.navigation(pages)
 
 with st.sidebar:
     be = get_backend()
+    be.share_tables_with(current_user())
     st.markdown("### 🩺 Lakehouse Doctor")
     st.markdown(chip("demo data", "violet") if be.mode == "demo" else chip("live workspace", "green"),
                 unsafe_allow_html=True)

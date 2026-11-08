@@ -18,6 +18,10 @@ spark.sql(f"""CREATE OR REPLACE TABLE {fq('orders')} AS
 spark.sql(f"""CREATE TABLE IF NOT EXISTS {fq('incidents')} (
                 run_id BIGINT, job_id BIGINT, run_name STRING, category STRING, summary STRING,
                 diagnosis_json STRING, decision STRING, decided_by STRING, decided_at TIMESTAMP)""")
+spark.sql(f"""CREATE TABLE IF NOT EXISTS {fq('diagnoses')} (
+                run_id BIGINT, job_id BIGINT, run_name STRING, failed_at TIMESTAMP, diagnosed_at TIMESTAMP,
+                category STRING, summary STRING, confidence DOUBLE, fix_verified BOOLEAN, fix_location STRING,
+                diagnosis_json STRING, trace_json STRING)""")
 display(spark.sql(f"SHOW TABLES IN {config.CATALOG}.{config.SCHEMA}"))
 
 # COMMAND ----------

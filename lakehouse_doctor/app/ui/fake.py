@@ -97,6 +97,9 @@ class FakeBackend:
     def clear_cache(self):
         pass
 
+    def share_tables_with(self, user):
+        pass
+
     def diagnoses(self):
         import json
         out = []
