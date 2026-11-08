@@ -11,6 +11,10 @@
 #   GOLD    gold_incidents        (reports clustered by H3 cell + category)
 #           gold_priority_queue   (incident + hazard + vulnerability + forecast -> urgency)
 #
+# Every table is created with a fully-qualified name (catalog.schema.table) from
+# triage.catalog / triage.schema, so the pipeline's "default schema" setting does
+# not matter.
+#
 # Configuration keys (set in databricks.yml):
 #   triage.catalog, triage.schema, triage.src_path,
 #   triage.classifier_mode = keywords | ai_functions | model
@@ -79,17 +83,17 @@ def autoload(path: str, schema: str):
 
 # ─────────────────────────────── BRONZE ───────────────────────────────
 
-@dlt.table(comment="Raw incoming reports (replay, app, synthetic). Append-only.")
+@dlt.table(name=fq("bronze_reports"), comment="Raw incoming reports (replay, app, synthetic). Append-only.")
 def bronze_reports():
     return autoload(f"{LANDING}/reports", REPORT_SCHEMA)
 
 
-@dlt.table(comment="Raw NWS alerts, one row per alert per poll.")
+@dlt.table(name=fq("bronze_alerts"), comment="Raw NWS alerts, one row per alert per poll.")
 def bronze_alerts():
     return autoload(f"{LANDING}/alerts", ALERT_SCHEMA)
 
 
-@dlt.table(comment="Raw USGS gauge readings.")
+@dlt.table(name=fq("bronze_gauges"), comment="Raw USGS gauge readings.")
 def bronze_gauges():
     return autoload(f"{LANDING}/gauges", GAUGE_SCHEMA)
 
@@ -165,14 +169,14 @@ def _classify(df):
     return df.drop("_kw")
 
 
-@dlt.table(comment="Cleaned, deduplicated, classified and geolocated reports.")
+@dlt.table(name=fq("silver_reports"), comment="Cleaned, deduplicated, classified and geolocated reports.")
 @dlt.expect_or_drop("has_text", "text IS NOT NULL AND length(trim(text)) > 3")
 @dlt.expect_or_drop("has_time", "reported_at IS NOT NULL")
 @dlt.expect("has_location", "lat IS NOT NULL AND lon IS NOT NULL")
 @dlt.expect("in_texas_bbox", "lat IS NULL OR (lat BETWEEN 25.8 AND 36.6 AND lon BETWEEN -106.7 AND -93.5)")
 def silver_reports():
     df = (
-        dlt.read_stream("bronze_reports")
+        spark.readStream.table(fq("bronze_reports"))  # noqa: F821
         .withColumn("text_hash", F.sha2(F.lower(F.regexp_replace("text", r"\s+", " ")), 256))
         .withWatermark("reported_at", "6 hours")
         .dropDuplicatesWithinWatermark(["text_hash"])   # retweets / double submits
@@ -213,12 +217,12 @@ def silver_reports():
     return df
 
 
-@dlt.table(comment="Active NWS alerts exploded to county FIPS (latest version of each alert).")
+@dlt.table(name=fq("silver_alerts_active"), comment="Active NWS alerts exploded to county FIPS (latest version of each alert).")
 def silver_alerts_active():
     w = Window.partitionBy("alert_id").orderBy(F.col("fetched_at").desc())
     now = F.current_timestamp()
     return (
-        dlt.read("bronze_alerts")
+        spark.read.table(fq("bronze_alerts"))
         .withColumn("_rn", F.row_number().over(w)).filter("_rn = 1").drop("_rn")
         .filter(F.col("expires").isNull() | (F.col("expires") > now))
         .withColumn("county_fips", F.explode_outer("county_fips"))
@@ -231,9 +235,9 @@ def silver_alerts_active():
     # a separate table and filter by the replay clock instead.
 
 
-@dlt.table(comment="Latest stage per gauge, 3h rise, and NWS flood stage (ft above flood).")
+@dlt.table(name=fq("silver_gauges_latest"), comment="Latest stage per gauge, 3h rise, and NWS flood stage (ft above flood).")
 def silver_gauges_latest():
-    g = dlt.read("bronze_gauges").filter("parameter_code = '00065'")
+    g = spark.read.table(fq("bronze_gauges")).filter("parameter_code = '00065'")
     w_latest = Window.partitionBy("site_id").orderBy(F.col("observed_at").desc())
     latest = g.withColumn("_rn", F.row_number().over(w_latest)).filter("_rn = 1").drop("_rn")
     three_h_ago = (
@@ -258,11 +262,11 @@ def silver_gauges_latest():
 
 # ──────────────────────────────── GOLD ────────────────────────────────
 
-@dlt.table(comment="Reports clustered into incidents: same H3 res-9 cell + category.")
+@dlt.table(name=fq("gold_incidents"), comment="Reports clustered into incidents: same H3 res-9 cell + category.")
 def gold_incidents():
     # TODO(you) stretch: sessionize by time gap (e.g. new incident if >6h since last
     # report in the cell) so a cell can have multiple incidents over a multi-day storm.
-    r = dlt.read("silver_reports").filter("category <> 'not_relevant' AND h3_cell IS NOT NULL")
+    r = spark.read.table(fq("silver_reports")).filter("category <> 'not_relevant' AND h3_cell IS NOT NULL")
     area = spark.read.table(fq("ref_h3_area"))  # noqa: F821  (h3_area, county_fips, svi_percentile)
     return (
         r.groupBy("h3_cell", "category")
@@ -314,18 +318,18 @@ def urgency_udf(p_life, warn, ft_above, vuln, svi, minutes, n_rep, people, fc):
     return pd.DataFrame(out, columns=["urgency", "tier", "breakdown_json"])
 
 
-@dlt.table(comment="Ranked dispatch queue. The App and the agent read this.")
+@dlt.table(name=fq("gold_priority_queue"), comment="Ranked dispatch queue. The App and the agent read this.")
 def gold_priority_queue():
-    inc = dlt.read("gold_incidents")
+    inc = spark.read.table(fq("gold_incidents"))
 
     alerts = (
-        dlt.read("silver_alerts_active").filter("is_flood_related")
+        spark.read.table(fq("silver_alerts_active")).filter("is_flood_related")
         .groupBy("county_fips").agg(F.collect_set("event").alias("alert_events"))
         .withColumn("in_flood_warning", F.lit(True))
     )
 
     # Nearest gauge: candidate gauges within 2 rings of the incident's area cell.
-    gauges = dlt.read("silver_gauges_latest").filter("h3_area IS NOT NULL")
+    gauges = spark.read.table(fq("silver_gauges_latest")).filter("h3_area IS NOT NULL")
     cand = (
         inc.select("incident_id", "h3_area", "lat", "lon")
         .withColumn("ring", F.explode(F.expr("h3_kring(h3_area, 2)")))
