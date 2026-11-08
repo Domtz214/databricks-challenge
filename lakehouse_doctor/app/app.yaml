@@ -8,7 +8,7 @@ env:
     value: doctor
   - name: DOCTOR_LLM_ENDPOINT      # any tool-calling chat model from Serving
     value: databricks-meta-llama-3-3-70b-instruct
-  - name: DOCTOR_GENIE_SPACE_ID   # injected from the app's "genie-space" resource (Edit app -> Resources)
-    valueFrom: genie-space
+  - name: DOCTOR_GENIE_SPACE_ID   # "Lakehouse Doctor: Reliability" space (share it with the app's SP: Can run)
+    value: "01f1db98540f1caab1e066115ec26b78"
   - name: STREAMLIT_BROWSER_GATHER_USAGE_STATS
     value: "false"
