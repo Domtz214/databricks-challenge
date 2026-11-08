@@ -15,7 +15,7 @@ from datetime import datetime, timedelta, timezone
 import streamlit as st
 
 from doctor import config
-from doctor.config import fq
+from doctor.config import fq, sys_table
 
 SCENARIOS = {
     "typo": {"title": "Typo in a table name", "icon": "🔤",
@@ -181,14 +181,14 @@ class RealBackend:
     def failure_cost(self, days: int = 30) -> list[dict]:
         """DBUs + list $ spent on runs that FAILED (billing joined to run outcomes). Lags a few hours."""
         return self.db.query(f"""
-            WITH failed AS (SELECT DISTINCT CAST(run_id AS STRING) AS run_id, job_id FROM system.lakeflow.job_run_timeline
+            WITH failed AS (SELECT DISTINCT CAST(run_id AS STRING) AS run_id, job_id FROM {sys_table('job_run_timeline')}
                             WHERE result_state IN ('FAILED','TIMEDOUT','INTERNAL_ERROR')
                               AND period_start_time >= current_date() - INTERVAL {int(days)} DAYS)
             SELECT f.job_id, round(sum(u.usage_quantity), 3) AS dbus,
                    round(sum(u.usage_quantity * p.pricing.default), 2) AS list_cost_usd
-            FROM system.billing.usage u
+            FROM {sys_table('billing_usage')} u
             JOIN failed f ON u.usage_metadata.job_run_id = f.run_id
-            LEFT JOIN system.billing.list_prices p ON u.sku_name = p.sku_name
+            LEFT JOIN {sys_table('list_prices')} p ON u.sku_name = p.sku_name
              AND u.usage_start_time >= p.price_start_time
              AND (p.price_end_time IS NULL OR u.usage_start_time < p.price_end_time)
             GROUP BY f.job_id ORDER BY dbus DESC""")

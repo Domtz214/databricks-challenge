@@ -13,6 +13,8 @@ from __future__ import annotations
 import base64
 from datetime import datetime, timedelta, timezone
 
+from .config import sys_table
+
 FAILED_STATES = {"FAILED", "TIMEDOUT", "INTERNAL_ERROR", "CANCELED"}
 
 
@@ -142,7 +144,7 @@ def run_job_and_wait(job_id: int, timeout_min: int = 20) -> str:
 def job_history(db, job_id: int, n: int = 30) -> list[dict]:
     return db.query(
         f"""SELECT run_id, period_start_time, result_state, termination_code
-            FROM system.lakeflow.job_run_timeline
+            FROM {sys_table('job_run_timeline')}
             WHERE job_id = :job_id AND result_state IS NOT NULL
             ORDER BY period_start_time DESC LIMIT {int(n)}""",
         {"job_id": str(job_id)},
@@ -156,8 +158,8 @@ def top_cost_drivers(db, days: int = 7, n: int = 10) -> list[dict]:
                             u.usage_metadata.dlt_pipeline_id, u.usage_metadata.notebook_id) AS resource_id,
                    round(sum(u.usage_quantity), 3) AS dbus,
                    round(sum(u.usage_quantity * p.pricing.default), 2) AS list_cost_usd
-            FROM system.billing.usage u
-            LEFT JOIN system.billing.list_prices p
+            FROM {sys_table('billing_usage')} u
+            LEFT JOIN {sys_table('list_prices')} p
               ON u.sku_name = p.sku_name AND u.usage_start_time >= p.price_start_time
              AND (p.price_end_time IS NULL OR u.usage_start_time < p.price_end_time)
             WHERE u.usage_date >= current_date() - INTERVAL {int(days)} DAYS
@@ -169,7 +171,7 @@ def slow_queries(db, days: int = 1, n: int = 10) -> list[dict]:
     return db.query(
         f"""SELECT statement_id, executed_by, total_duration_ms, read_bytes, produced_rows,
                    left(statement_text, 400) AS statement_text
-            FROM system.query.history
+            FROM {sys_table('query_history')}
             WHERE start_time >= current_timestamp() - INTERVAL {int(days)} DAYS
               AND execution_status = 'FINISHED'
             ORDER BY total_duration_ms DESC LIMIT {int(n)}"""

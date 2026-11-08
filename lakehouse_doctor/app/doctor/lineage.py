@@ -14,6 +14,8 @@ import base64
 import re
 from collections import defaultdict
 
+from .config import sys_table
+
 NAME = r"`?([A-Za-z_][\w]*)`?\.`?([A-Za-z_][\w]*)`?\.`?([A-Za-z_][\w]*)`?"
 READ_PATTERNS = [
     rf"""(?:read|readStream)\s*\.\s*table\(\s*["']{NAME}["']""",
@@ -77,9 +79,9 @@ def build_code_lineage(max_jobs: int = 200) -> list[dict]:
 def system_lineage(db, table: str) -> list[dict]:
     try:
         return db.query(
-            """SELECT DISTINCT source_table_full_name AS source, target_table_full_name AS target,
+            f"""SELECT DISTINCT source_table_full_name AS source, target_table_full_name AS target,
                       entity_type, entity_id
-               FROM system.access.table_lineage
+               FROM {sys_table('table_lineage')}
                WHERE (source_table_full_name = :t OR target_table_full_name = :t)
                  AND event_time >= current_timestamp() - INTERVAL 30 DAYS LIMIT 200""",
             {"t": table},
