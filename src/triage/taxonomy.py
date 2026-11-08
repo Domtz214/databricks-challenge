@@ -23,13 +23,15 @@ CATEGORIES = [
 LIFE_THREATENING = {"rescue_request", "medical_emergency"}
 
 # HumAID (Alam et al., 2021) humanitarian labels -> our taxonomy.
-# NOTE: HumAID's `requests_or_urgent_needs` mixes rescue and supplies requests.
-# TODO(you): hand-label ~300 Harvey `requests_or_urgent_needs` tweets into
-# rescue_request vs supplies_need (notebook 02 exports a CSV for this). That
-# relabeled set is your evaluation set.
+# NOTE: HumAID's `requests_or_urgent_needs` (333 Harvey tweets) mixes rescue, medical
+# and supplies requests. TODO(you): hand-label all of them plus a sample of
+# `injured_or_dead_people` (notebook 02 exports relabel_todo.csv). That relabeled
+# set is the life-threatening ground truth for the classifier and the back-test.
 HUMAID_TO_TRIAGE = {
     "requests_or_urgent_needs": "rescue_request",
-    "injured_or_dead_people": "medical_emergency",
+    # Mostly casualty *news* ("death toll rises"), not requests for help. Treat as info;
+    # real medical emergencies come from hand relabels (notebook 02 exports a sample).
+    "injured_or_dead_people": "info_or_other",
     "missing_or_found_people": "rescue_request",
     "displaced_people_and_evacuations": "shelter_need",
     "infrastructure_and_utility_damage": "infrastructure_damage",

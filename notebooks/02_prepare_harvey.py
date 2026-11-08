@@ -4,7 +4,7 @@
 # MAGIC 1. Load HumAID Harvey tweets (ID, text, label), recover timestamps from tweet IDs.
 # MAGIC 2. Map labels to the Triage taxonomy.
 # MAGIC 3. Extract locations with `ai_extract` and geocode → `harvey_reports` (the replay source).
-# MAGIC 4. Export a sample for hand relabeling (rescue vs supplies) → your evaluation set.
+# MAGIC 4. Export tweets for hand relabeling (all urgent requests + 100 casualty tweets) → your evaluation set.
 # MAGIC
 # MAGIC **Data:** the first cell downloads the Harvey split files (train/dev/test) from QCRI's official
 # MAGIC Hugging Face mirror (`QCRI/HumAID-events`) into `reference/humaid/`. The original CrisisNLP site is
@@ -148,14 +148,19 @@ display(spark.sql(f"SELECT count(*) n, count(lat) geocoded FROM {fq('harvey_repo
 
 # COMMAND ----------
 
-# MAGIC %md ### Export relabel sample
-# MAGIC HumAID's `requests_or_urgent_needs` mixes rescue and supplies. Relabel ~300 by hand
-# MAGIC (`relabel` column: rescue_request / supplies_need / medical_emergency / other), upload as
-# MAGIC `reference/humaid/relabels.csv`. Notebooks 05 and 08 use it automatically.
+# MAGIC %md ### Export tweets to relabel (≈430 rows, about 45 min)
+# MAGIC All 333 `requests_or_urgent_needs` tweets + 100 random `injured_or_dead_people` tweets.
+# MAGIC Fill the `relabel` column with one of:
+# MAGIC `rescue_request` · `medical_emergency` · `supplies_need` · `shelter_need` · `info_or_other` · `not_relevant`
+# MAGIC Rule of thumb: **rescue/medical = someone needs a responder now** (trapped, water rising, needs
+# MAGIC dialysis/insulin/oxygen, injured and stuck). News, prayers, donation drives = info/not relevant.
+# MAGIC Save as `reference/humaid/relabels.csv` (keep `tweet_id`). Notebooks 05 and 08 use it automatically.
 
 # COMMAND ----------
 
-sample = (spark.table(fq("harvey_tweets")).filter("humaid_label = 'requests_or_urgent_needs'")
-          .orderBy(F.rand(42)).limit(300).select("tweet_id", "text", F.lit("").alias("relabel")))
-sample.toPandas().to_csv(f"{config.REFERENCE_DIR}/humaid/relabel_todo.csv", index=False)
-print("Download from the reference volume:", f"{config.REFERENCE_DIR}/humaid/relabel_todo.csv")
+base = spark.table(fq("harvey_tweets")).select("tweet_id", "humaid_label", "text")
+todo = (base.filter("humaid_label = 'requests_or_urgent_needs'")
+        .unionByName(base.filter("humaid_label = 'injured_or_dead_people'").orderBy(F.rand(42)).limit(100))
+        .withColumn("relabel", F.lit("")))
+todo.toPandas().to_csv(f"{config.REFERENCE_DIR}/humaid/relabel_todo.csv", index=False)
+print(todo.count(), "rows ->", f"{config.REFERENCE_DIR}/humaid/relabel_todo.csv")

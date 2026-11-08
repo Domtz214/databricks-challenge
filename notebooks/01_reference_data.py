@@ -29,31 +29,34 @@ REF = config.REFERENCE_DIR
 
 # COMMAND ----------
 
-# CDC/ATSDR SVI 2022, Texas, census tract CSV. RPL_THEMES = overall percentile (0..1, -999 = missing).
-svi = (spark.read.option("header", True).csv(f"{REF}/svi/Texas.csv")
-       .select(F.col("FIPS").alias("tract_geoid"),
-               F.when(F.col("RPL_THEMES").cast("double") < 0, None)
-                .otherwise(F.col("RPL_THEMES").cast("double")).alias("svi_percentile")))
+try:
+    # CDC/ATSDR SVI 2022, Texas, census tract CSV. RPL_THEMES = overall percentile (0..1, -999 = missing).
+    svi = (spark.read.option("header", True).csv(f"{REF}/svi/Texas.csv")
+           .select(F.col("FIPS").alias("tract_geoid"),
+                   F.when(F.col("RPL_THEMES").cast("double") < 0, None)
+                    .otherwise(F.col("RPL_THEMES").cast("double")).alias("svi_percentile")))
 
-# Census Gazetteer tracts file (tab-separated). The last header has trailing spaces -> trim names.
-gaz = spark.read.option("header", True).option("sep", "\t").csv(f"{REF}/census/2023_Gaz_tracts_48.txt")
-gaz = gaz.toDF(*[c.strip() for c in gaz.columns])
-tracts = (gaz.select(F.col("GEOID").alias("tract_geoid"),
-                     F.col("INTPTLAT").cast("double").alias("lat"),
-                     F.col("INTPTLONG").cast("double").alias("lon"))
-          .join(svi, "tract_geoid", "left")
-          .withColumn("county_fips", F.substring("tract_geoid", 1, 5))
-          .withColumn("tract_cell", F.expr(f"h3_longlatash3string(lon, lat, {H3_RES_AREA})")))
+    # Census Gazetteer tracts file (tab-separated). The last header has trailing spaces -> trim names.
+    gaz = spark.read.option("header", True).option("sep", "\t").csv(f"{REF}/census/2023_Gaz_tracts_48.txt")
+    gaz = gaz.toDF(*[c.strip() for c in gaz.columns])
+    tracts = (gaz.select(F.col("GEOID").alias("tract_geoid"),
+                         F.col("INTPTLAT").cast("double").alias("lat"),
+                         F.col("INTPTLONG").cast("double").alias("lon"))
+              .join(svi, "tract_geoid", "left")
+              .withColumn("county_fips", F.substring("tract_geoid", 1, 5))
+              .withColumn("tract_cell", F.expr(f"h3_longlatash3string(lon, lat, {H3_RES_AREA})")))
 
-# Fill every area cell near a tract centroid, keep the closest tract (grid distance).
-area = (tracts.withColumn("h3_area", F.explode(F.expr("h3_kring(tract_cell, 3)")))
-        .withColumn("d", F.expr("h3_distance(h3_area, tract_cell)")))
-from pyspark.sql.window import Window
-w = Window.partitionBy("h3_area").orderBy("d")
-ref_h3_area = (area.withColumn("_rn", F.row_number().over(w)).filter("_rn = 1")
-               .select("h3_area", "county_fips", "tract_geoid", "svi_percentile"))
-ref_h3_area.write.mode("overwrite").saveAsTable(fq("ref_h3_area"))
-print(spark.table(fq("ref_h3_area")).count(), "area cells")
+    # Fill every area cell near a tract centroid, keep the closest tract (grid distance).
+    area = (tracts.withColumn("h3_area", F.explode(F.expr("h3_kring(tract_cell, 3)")))
+            .withColumn("d", F.expr("h3_distance(h3_area, tract_cell)")))
+    from pyspark.sql.window import Window
+    w = Window.partitionBy("h3_area").orderBy("d")
+    ref_h3_area = (area.withColumn("_rn", F.row_number().over(w)).filter("_rn = 1")
+                   .select("h3_area", "county_fips", "tract_geoid", "svi_percentile"))
+    ref_h3_area.write.mode("overwrite").saveAsTable(fq("ref_h3_area"))
+    print(spark.table(fq("ref_h3_area")).count(), "area cells")
+except Exception as e:
+    print("SKIPPED tracts/SVI (upload svi/Texas.csv and census/2023_Gaz_tracts_48.txt):", str(e)[:200])
 
 # COMMAND ----------
 
@@ -79,13 +82,18 @@ seed_places = [
 places = spark.createDataFrame(seed_places, "name STRING, lat DOUBLE, lon DOUBLE, kind STRING")
 
 # ZIP centroids (Census ZCTA gazetteer). Tweets often include a ZIP.
-zcta = spark.read.option("header", True).option("sep", "\t").csv(f"{REF}/census/2023_Gaz_zcta_national.txt")
-zcta = zcta.toDF(*[c.strip() for c in zcta.columns])
-zips = (zcta.filter(F.col("GEOID").between("75000", "79999") | F.col("GEOID").startswith("885"))
-        .select(F.col("GEOID").alias("name"), F.col("INTPTLAT").cast("double").alias("lat"),
-                F.col("INTPTLONG").cast("double").alias("lon"), F.lit("zip").alias("kind")))
+try:
+    zcta = spark.read.option("header", True).option("sep", "\t").csv(f"{REF}/census/2023_Gaz_zcta_national.txt")
+    zcta = zcta.toDF(*[c.strip() for c in zcta.columns])
+    zips = (zcta.filter(F.col("GEOID").between("75000", "79999") | F.col("GEOID").startswith("885"))
+            .select(F.col("GEOID").alias("name"), F.col("INTPTLAT").cast("double").alias("lat"),
+                    F.col("INTPTLONG").cast("double").alias("lon"), F.lit("zip").alias("kind")))
+    places = places.unionByName(zips)
+except Exception as e:
+    print("ZIP centroids skipped (upload census/2023_Gaz_zcta_national.txt):", str(e)[:200])
 
-places.unionByName(zips).write.mode("overwrite").saveAsTable(fq("ref_gazetteer"))
+places.write.mode("overwrite").saveAsTable(fq("ref_gazetteer"))
+print(spark.table(fq("ref_gazetteer")).count(), "gazetteer entries")
 
 # COMMAND ----------
 
