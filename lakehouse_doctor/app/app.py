@@ -70,7 +70,11 @@ with incidents_tab:
             for e in dx.get("evidence", []):
                 st.markdown(f"- {e}")
             fix = dx.get("fix") or {}
-            st.markdown(f"**Proposed fix:** {fix.get('description')}")
+            st.markdown(f"**Proposed fix** in `{fix.get('notebook_path')}`: {fix.get('description')}")
+            if dx.get("fix_verified"):
+                st.success("✔ Fix verified: the exact code to replace was found once in the target notebook.")
+            elif fix.get("before"):
+                st.warning(f"⚠ Fix not verified: {dx.get('verification')}")
             if fix.get("before") and fix.get("after"):
                 a, b = st.columns(2)
                 a.code(fix["before"], language="python"); a.caption("before")
@@ -84,7 +88,7 @@ with incidents_tab:
 
             approve, rerun_only, dismiss = st.columns(3)
             if approve.button("✅ Apply fix + rerun", key=f"apply_{f['run_id']}",
-                              disabled=not (fix.get("before") and fix.get("after"))):
+                              disabled=not dx.get("fix_verified")):
                 path = fix.get("notebook_path")
                 if not path:
                     err = signals.run_error(f["run_id"])

@@ -61,6 +61,34 @@ def run_error(run_id: int) -> dict:
     return {"run_id": run_id, "job_id": run.job_id, "run_name": run.run_name, "failed_tasks": tasks}
 
 
+def run_details(run_id: int) -> dict:
+    """Job, parameters, notebook paths and state of a run (works for task runs and job runs)."""
+    w = _w()
+    run = w.jobs.get_run(run_id)
+    params = {}
+    op = getattr(run, "overriding_parameters", None)
+    if op and getattr(op, "notebook_params", None):
+        params.update(op.notebook_params)
+    for p in getattr(run, "job_parameters", None) or []:
+        params[p.name] = p.value if p.value is not None else p.default
+    tasks = []
+    for t in run.tasks or []:
+        nt = t.notebook_task
+        tasks.append({"task_key": t.task_key, "notebook_path": nt.notebook_path if nt else None,
+                      "base_parameters": dict(nt.base_parameters or {}) if nt else {},
+                      "result_state": t.state.result_state.value if t.state and t.state.result_state else None})
+    return {"run_id": run_id, "job_id": run.job_id, "run_name": run.run_name,
+            "start_time": datetime.fromtimestamp((run.start_time or 0) / 1000, timezone.utc).isoformat(),
+            "parameters": params, "tasks": tasks}
+
+
+def raw_source(notebook_path: str) -> str:
+    from databricks.sdk.service.workspace import ExportFormat
+
+    exp = _w().workspace.export(notebook_path, format=ExportFormat.SOURCE)
+    return base64.b64decode(exp.content).decode("utf-8", errors="replace")
+
+
 def source_code(notebook_path: str, max_chars: int = 6000) -> dict:
     from databricks.sdk.service.workspace import ExportFormat
 
