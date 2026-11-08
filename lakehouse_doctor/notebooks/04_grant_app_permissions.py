@@ -11,8 +11,10 @@ dbutils.widgets.text("app_name", "lakehouse-doctor")
 dbutils.widgets.dropdown("system_mode", "views", ["views", "copies"])
 APP, SYSTEM_MODE = dbutils.widgets.get("app_name"), dbutils.widgets.get("system_mode")
 
-import os, posixpath, sys
+import importlib, os, posixpath, sys
 sys.path.insert(0, os.path.abspath("../app"))
+for _m in [m for m in sys.modules if m == "doctor" or m.startswith("doctor.")]:
+    del sys.modules[_m]   # drop modules cached from an earlier run so updated code is used
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service import jobs as J, sql as S, workspace as W
 from doctor import config
@@ -75,7 +77,17 @@ for g in [f"GRANT USE CATALOG ON CATALOG {config.CATALOG} TO `{sp}`",
 
 # COMMAND ----------
 
-from doctor.config import _SYSTEM, fq
+# Inlined (not imported) so a stale cached `doctor` module can't break this cell.
+# Keep in sync with doctor/config.py::_SYSTEM.
+_SYSTEM = {
+    "job_run_timeline": "system.lakeflow.job_run_timeline",
+    "jobs": "system.lakeflow.jobs",
+    "billing_usage": "system.billing.usage",
+    "list_prices": "system.billing.list_prices",
+    "query_history": "system.query.history",
+    "table_lineage": "system.access.table_lineage",
+}
+fq = lambda name: f"{config.CATALOG}.{config.SCHEMA}.{name}"
 
 LOOKBACK = {"billing_usage": "usage_date >= current_date() - INTERVAL 45 DAYS",
             "query_history": "start_time >= current_timestamp() - INTERVAL 7 DAYS",
