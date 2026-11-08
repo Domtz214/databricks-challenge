@@ -6,8 +6,11 @@
 # MAGIC 3. Extract locations with `ai_extract` and geocode → `harvey_reports` (the replay source).
 # MAGIC 4. Export a sample for hand relabeling (rescue vs supplies) → your evaluation set.
 # MAGIC
-# MAGIC Download: HumAID event files for `hurricane_harvey_2017` (train/dev/test TSV) →
-# MAGIC `reference/humaid/`. See `docs/data_sources.md`.
+# MAGIC **Data:** the first cell downloads the Harvey split files (train/dev/test) from QCRI's official
+# MAGIC Hugging Face mirror (`QCRI/HumAID-events`) into `reference/humaid/`. The original CrisisNLP site is
+# MAGIC offline. If the download is blocked, download the three files in a browser from
+# MAGIC huggingface.co/datasets/QCRI/HumAID-events → `hurricane_harvey_2017/` and upload them to
+# MAGIC `reference/humaid/` as `hurricane_harvey_2017_{train,dev,test}.json`. TSVs also work.
 
 # COMMAND ----------
 
@@ -20,9 +23,63 @@ from triage.config import fq
 
 # COMMAND ----------
 
-raw = (spark.read.option("header", True).option("sep", "\t").option("quote", "")
-       .csv(f"{config.REFERENCE_DIR}/humaid/hurricane_harvey_2017_*.tsv")
-       .withColumn("split", F.regexp_extract(F.col("_metadata.file_path"), r"_(train|dev|test)\.tsv", 1)))
+# Download from the official QCRI mirror on Hugging Face (skips files already present).
+# If the dataset is gated, accept its terms on huggingface.co while signed in, then put a read
+# token in HF_TOKEN below (or upload the files by hand).
+import requests
+HF_URL = "https://huggingface.co/datasets/QCRI/HumAID-events/resolve/main/hurricane_harvey_2017/{split}.json"
+HF_TOKEN = ""  # optional
+HUMAID_DIR = f"{config.REFERENCE_DIR}/humaid"
+os.makedirs(HUMAID_DIR, exist_ok=True)
+for split in ["train", "dev", "test"]:
+    dst = f"{HUMAID_DIR}/hurricane_harvey_2017_{split}.json"
+    if os.path.exists(dst) or os.path.exists(dst[:-5] + ".tsv"):
+        print("have", split); continue
+    try:
+        r = requests.get(HF_URL.format(split=split), timeout=120,
+                         headers={"Authorization": f"Bearer {HF_TOKEN}"} if HF_TOKEN else {})
+        r.raise_for_status()
+        with open(dst, "wb") as f:
+            f.write(r.content)
+        print("downloaded", split, len(r.content), "bytes")
+    except Exception as e:
+        print(f"download failed for {split}: {e}\n-> download it in a browser and upload to {HUMAID_DIR}")
+print(sorted(os.listdir(HUMAID_DIR)))
+
+# COMMAND ----------
+
+import glob, json, re
+import pandas as pd
+
+def read_humaid(path: str) -> pd.DataFrame:
+    """Reads a HumAID split as TSV, JSON lines, or a JSON array; normalizes column names."""
+    if path.endswith(".tsv"):
+        df = pd.read_csv(path, sep="\t", dtype=str, quoting=3)
+    else:
+        with open(path, encoding="utf-8") as f:
+            text = f.read().strip()
+        if text.startswith("["):
+            records = json.loads(text)
+        elif text.startswith("{") and "\n" not in text:
+            obj = json.loads(text)
+            records = next(v for v in obj.values() if isinstance(v, list))
+        else:
+            records = [json.loads(line) for line in text.splitlines() if line.strip()]
+        df = pd.DataFrame(records)
+    pick = lambda *names: next(n for n in names if n in df.columns)
+    out = pd.DataFrame({
+        "tweet_id": df[pick("tweet_id", "id", "tweetid")].astype(str).str.replace(r"\.0$", "", regex=True),
+        "tweet_text": df[pick("tweet_text", "text")].astype(str),
+        "class_label": df[pick("class_label", "label", "labels")].astype(str),
+    })
+    out["split"] = re.search(r"(train|dev|test)", os.path.basename(path)).group(1)
+    return out
+
+files = sorted(glob.glob(f"{HUMAID_DIR}/hurricane_harvey_2017_*.json") + glob.glob(f"{HUMAID_DIR}/hurricane_harvey_2017_*.tsv"))
+assert files, f"no HumAID files in {HUMAID_DIR}"
+pdf = pd.concat([read_humaid(p) for p in files], ignore_index=True).drop_duplicates("tweet_id")
+print(pdf.split.value_counts().to_dict(), pdf.class_label.nunique(), "labels")
+raw = spark.createDataFrame(pdf)
 display(raw.limit(5))
 
 # Tweet IDs are Snowflake IDs: (id >> 22) + Twitter epoch = creation time in ms

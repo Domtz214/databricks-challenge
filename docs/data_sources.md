@@ -5,7 +5,7 @@ reference → Upload) using the folder/file names below. All sources are public.
 
 | Data | Where | Save as | Used by |
 |---|---|---|---|
-| **HumAID** (Harvey event: train/dev/test TSV: `tweet_id`, `tweet_text`, `class_label`) | crisisnlp.qcri.org → HumAID dataset | `humaid/hurricane_harvey_2017_{train,dev,test}.tsv` | 02, 05, 08 |
+| **HumAID** (Harvey event: train/dev/test: `tweet_id`, `tweet_text`, `class_label`) | **Notebook 02 downloads it automatically** from QCRI's Hugging Face mirror `QCRI/HumAID-events` (the CrisisNLP site is offline) | `humaid/hurricane_harvey_2017_{train,dev,test}.json` | 02, 05, 08 |
 | **CDC/ATSDR SVI 2022**, Texas, census tracts, CSV | atsdr.cdc.gov → Place and Health → SVI → Data download | `svi/Texas.csv` | 01 |
 | **Census Gazetteer**: tracts (Texas) + ZCTA (national) | census.gov → Geographies → Gazetteer Files | `census/2023_Gaz_tracts_48.txt`, `census/2023_Gaz_zcta_national.txt` | 01 |
 | **Shelters** (FEMA National Shelter System open data, or Red Cross / county lists) | FEMA GIS open data / ArcGIS Hub | `facilities/shelters.csv` | 01, agent |
