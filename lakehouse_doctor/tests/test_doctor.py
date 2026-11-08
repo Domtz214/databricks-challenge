@@ -14,9 +14,8 @@ def test_parse_json_extracts_object():
 
 
 def test_tool_schemas_match_registry():
-    names = {t["function"]["name"] for t in agent.TOOLS}
     d = agent.Doctor(db=None, client=object())
-    assert names == set(d.tools)
+    assert {t["function"]["name"] for t in d.tool_schemas} == set(d.tools)
 
 
 class FakeClient:

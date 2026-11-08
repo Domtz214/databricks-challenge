@@ -96,6 +96,18 @@ def rerun(run_id: int) -> dict:
     return {"repair_id": r.repair_id}
 
 
+def run_job_and_wait(job_id: int, timeout_min: int = 20) -> str:
+    """Run a whole job and wait (used to re-run an upstream job before repairing downstream)."""
+    from datetime import timedelta as _td
+
+    w = _w()
+    try:
+        r = w.jobs.run_now(job_id).result(timeout=_td(minutes=timeout_min))
+        return r.state.result_state.value
+    except Exception as e:
+        return f"FAILED: {str(e)[:200]}"
+
+
 # ---------------- System tables (history + cost) ----------------
 # These take a `db` with .query(sql, params) -> list[dict] (SparkSql in notebooks, WarehouseSql in the app).
 

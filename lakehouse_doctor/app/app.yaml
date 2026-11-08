@@ -6,5 +6,7 @@ env:
     value: workspace
   - name: DOCTOR_SCHEMA
     value: doctor
+  - name: DOCTOR_GENIE_SPACE_ID   # TODO(you): Genie space id (from its URL)
+    value: ""
   - name: STREAMLIT_BROWSER_GATHER_USAGE_STATS
     value: "false"
