@@ -1,0 +1,14 @@
+command: ["streamlit", "run", "app.py"]
+env:
+  - name: DATABRICKS_WAREHOUSE_ID
+    valueFrom: sql-warehouse
+  - name: DOCTOR_CATALOG
+    value: workspace
+  - name: DOCTOR_SCHEMA
+    value: doctor
+  - name: DOCTOR_LLM_ENDPOINT      # any tool-calling chat model from Serving
+    value: databricks-meta-llama-3-3-70b-instruct
+  - name: DOCTOR_GENIE_SPACE_ID   # "Lakehouse Doctor: Reliability" space (share it with the app's SP: Can run)
+    value: "01f1db98540f1caab1e066115ec26b78"
+  - name: STREAMLIT_BROWSER_GATHER_USAGE_STATS
+    value: "false"
