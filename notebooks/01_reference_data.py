@@ -82,8 +82,11 @@ seed_places = [
 places = spark.createDataFrame(seed_places, "name STRING, lat DOUBLE, lon DOUBLE, kind STRING")
 
 # ZIP centroids (Census ZCTA gazetteer). Tweets often include a ZIP.
+ZCTA_PATH = f"{REF}/census/2023_Gaz_zcta_national.txt"
 try:
-    zcta = spark.read.option("header", True).option("sep", "\t").csv(f"{REF}/census/2023_Gaz_zcta_national.txt")
+    if not os.path.exists(ZCTA_PATH):   # Spark reads lazily: fail here, not at the write below
+        raise FileNotFoundError(ZCTA_PATH)
+    zcta = spark.read.option("header", True).option("sep", "\t").csv(ZCTA_PATH)
     zcta = zcta.toDF(*[c.strip() for c in zcta.columns])
     zips = (zcta.filter(F.col("GEOID").between("75000", "79999") | F.col("GEOID").startswith("885"))
             .select(F.col("GEOID").alias("name"), F.col("INTPTLAT").cast("double").alias("lat"),
@@ -117,10 +120,13 @@ FACILITY_SOURCES = {
 frames = []
 for kind, m in FACILITY_SOURCES.items():
     path = f"{REF}/facilities/{m['file']}"
-    try:
-        df = spark.read.option("header", True).csv(path)
-    except Exception as e:
-        print(f"skip {kind}: {e}")
+    if not os.path.exists(path):            # Spark reads lazily, so check up front
+        print(f"skip {kind}: {path} not uploaded yet")
+        continue
+    df = spark.read.option("header", True).csv(path)
+    missing = [m[k] for k in ("id", "name", "address", "lat", "lon", "capacity") if m[k] not in df.columns]
+    if missing:
+        print(f"skip {kind}: columns {missing} not in file. Available: {df.columns}")
         continue
     frames.append(df.select(
         F.concat_ws(":", F.lit(kind), F.col(f"`{m['id']}`")).alias("facility_id"),
@@ -130,7 +136,9 @@ for kind, m in FACILITY_SOURCES.items():
         F.col(f"`{m['capacity']}`").cast("int").alias("capacity"), F.lit(True).alias("is_open"),
     ))
 
-if frames:
+if not frames:
+    print("No facility files yet; ref_facilities stays empty (agent tools return no facilities).")
+else:
     from functools import reduce
     fac = (reduce(lambda a, b: a.unionByName(b), frames)
            .filter("lat BETWEEN 25.8 AND 36.6 AND lon BETWEEN -106.7 AND -93.5")
