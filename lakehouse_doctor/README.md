@@ -53,12 +53,34 @@ lakehouse_doctor/
   tests/                    offline tests (fake LLM)
 ```
 
-## Try it (about 15 min)
-1. Run `notebooks/99_update_from_github` (repo root) to pull this folder into your workspace.
-2. Run `lakehouse_doctor/notebooks/00_setup_and_break_things`, then wait about 2 min for the 3 chaos jobs to fail.
-3. Run `lakehouse_doctor/notebooks/01_try_the_doctor`: read the diagnoses.
-4. (Optional) Compute → Apps → Create → custom app from `lakehouse_doctor/app`, add the
-   **SQL warehouse** resource with key `sql-warehouse`.
+## The app (one-stop shop)
+| Page | What it does |
+|---|---|
+| 🩺 **Overview** | KPIs (open incidents, 7-day job health, verified fixes, root-cause-upstream count, spend on failed runs), run-outcome chart, "needs attention" queue, *Diagnose all new* |
+| 🚨 **Incidents** | List + detail. **Diagnose** streams the investigation live; tabs: Diagnosis (culprit + blast-radius banners, evidence, confidence) · Lineage (graph with culprit in red, blast radius in amber) · Fix (verification badge, real unified diff, Genie Code prompt, *Apply fix & rerun*) · How it investigated (step timeline) |
+| 🕸️ **Lineage explorer** | Any table: writers, upstream, blast radius, Delta version history, version-to-version schema/value diff |
+| 🧞 **Ask Genie** | Chat with the Genie space the doctor also uses; shows Genie's SQL |
+| 💸 **Costs** | DBUs/$ by resource, spend on failed runs, slowest queries (system tables) |
+| 📜 **Incident log** | Every diagnosis + human decision (Delta), CSV export |
+| 🧪 **Chaos lab** | One-click scenarios that break real jobs (typo, bad append, bad data, silent upstream drift, reset) |
+
+Screenshots (demo data): `docs/screenshots/`.
+
+Preview anywhere with sample data: `cd lakehouse_doctor/app && DOCTOR_FAKE=1 streamlit run app.py`.
+
+## Deploy on Databricks (about 15 min)
+1. Run `notebooks/99_update_from_github` (repo root) to pull the latest code.
+2. Run `lakehouse_doctor/notebooks/00_setup_and_break_things` and `02_upstream_drift_scenario` once (creates the jobs).
+   Optional: `03_genie_space_setup` → create the Genie space → put its ID in `app/app.yaml`.
+3. **Compute → Apps → Create app → Custom**, name it `lakehouse-doctor`.
+4. In the app's settings → **Resources → Add → SQL warehouse** → *Serverless Starter Warehouse*, permission *Can use*,
+   resource key **`sql-warehouse`** (must match `app.yaml`).
+5. **Deploy** with source path `/Workspace/Users/<you>/databricks-challenge/lakehouse_doctor/app`.
+6. Run `lakehouse_doctor/notebooks/04_grant_app_permissions` (widget `app_name` = `lakehouse-doctor`). The app runs
+   as its own service principal; this grants it the jobs, notebooks folder, warehouse, schema and system tables.
+7. Open the app URL. Chaos lab → *Silent upstream drift* → wait ~1 min → Incidents → **Diagnose**.
+
+After code changes: run `99_update_from_github`, then **Deploy** again on the app page.
 
 ## How it could level up (if we commit)
 - **Proactive mode:** a scheduled job checks for new failures every few minutes and posts a diagnosis

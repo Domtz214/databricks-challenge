@@ -112,8 +112,10 @@ class Doctor:
         self._edges = None
         self.trace: list[dict] = []   # tool calls, shown in the app ("how the doctor reasoned")
 
-    def diagnose(self, run_id: int) -> dict[str, Any]:
+    def diagnose(self, run_id: int, on_event=None) -> dict[str, Any]:
+        """on_event(step_dict) is called after every tool call / verification (for live UIs)."""
         self.trace = []
+        emit = on_event or (lambda e: None)
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": SYSTEM},
             {"role": "user", "content": f"Diagnose failed run_id {run_id}."},
@@ -129,6 +131,7 @@ class Doctor:
                 if problem and repairs < self.max_repairs:
                     repairs += 1
                     self.trace.append({"tool": "verify_fix", "args": "", "result_preview": problem})
+                    emit(self.trace[-1])
                     messages.append({"role": "assistant", "content": msg.content or ""})
                     messages.append({"role": "user", "content": "Verification failed: " + problem + " Fix it and answer again with the full JSON."})
                     continue
@@ -144,6 +147,7 @@ class Doctor:
                 result = self._call(tc.function.name, tc.function.arguments)
                 self.trace.append({"tool": tc.function.name, "args": tc.function.arguments,
                                    "result_preview": json.dumps(result, default=str)[:400]})
+                emit(self.trace[-1])
                 messages.append({"role": "tool", "tool_call_id": tc.id,
                                  "content": json.dumps(result, default=str)[:8000]})
         return {"run_id": run_id, "error": "max_steps reached"}

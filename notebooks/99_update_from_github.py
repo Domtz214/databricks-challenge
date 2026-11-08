@@ -34,7 +34,7 @@ print("downloaded", len(r.content) // 1024, "KB,", len(zf.namelist()), "entries"
 # COMMAND ----------
 
 w = WorkspaceClient()
-updated, skipped = [], []
+updated, skipped, failed = [], [], []
 made_dirs = set()
 for name in zf.namelist():
     rel = name.split("/", 1)[1] if "/" in name else ""   # strip "<repo>-<branch>/" prefix
@@ -48,9 +48,14 @@ for name in zf.namelist():
         w.workspace.mkdirs(parent); made_dirs.add(parent)
     # AUTO: .py files that start with "# Databricks notebook source" become notebooks
     # (extension dropped, same as the ZIP import); everything else becomes a plain file.
-    w.workspace.upload(target, io.BytesIO(zf.read(name)), format=ImportFormat.AUTO, overwrite=True)
-    updated.append(rel)
+    try:
+        w.workspace.upload(target, io.BytesIO(zf.read(name)), format=ImportFormat.AUTO, overwrite=True)
+        updated.append(rel)
+    except Exception as e:  # e.g. a file type the workspace refuses; keep going
+        failed.append((rel, str(e)[:120]))
 print(f"updated {len(updated)} files; skipped {skipped}")
+if failed:
+    print("could not upload:", *failed, sep="\n  ")
 
 # COMMAND ----------
 

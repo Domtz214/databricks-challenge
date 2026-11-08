@@ -6,6 +6,8 @@ env:
     value: workspace
   - name: DOCTOR_SCHEMA
     value: doctor
+  - name: DOCTOR_LLM_ENDPOINT      # any tool-calling chat model from Serving
+    value: databricks-meta-llama-3-3-70b-instruct
   - name: DOCTOR_GENIE_SPACE_ID   # TODO(you): Genie space id (from its URL)
     value: ""
   - name: STREAMLIT_BROWSER_GATHER_USAGE_STATS
