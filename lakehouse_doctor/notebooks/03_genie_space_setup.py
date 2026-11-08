@@ -49,13 +49,14 @@ display(spark.sql(f"SELECT * FROM {fq('v_job_runs')} ORDER BY started_at DESC LI
 
 # MAGIC %md
 # MAGIC ### Create the Genie space (SQL → Genie → New)
-# MAGIC **Tables:** `workspace.doctor.incidents`, `workspace.doctor.lineage_edges`, `workspace.doctor.v_job_runs`,
+# MAGIC **Tables:** `workspace.doctor.incidents`, `workspace.doctor.diagnoses`, `workspace.doctor.lineage_edges`, `workspace.doctor.v_job_runs`,
 # MAGIC `workspace.doctor.v_job_cost`, `workspace.doctor.orders_clean`
 # MAGIC
 # MAGIC **Instructions:**
 # MAGIC ```
 # MAGIC This space describes the reliability and cost of Databricks jobs in this workspace.
-# MAGIC - incidents: one row per diagnosis by Lakehouse Doctor (category, summary, decision).
+# MAGIC - diagnoses: one row per diagnosis by Lakehouse Doctor (category, summary, confidence, fix_verified, fix_location).
+# MAGIC - incidents: one row per human decision on a diagnosis (fixed_and_rerun, rerun, dismissed).
 # MAGIC - lineage_edges: source table -> target table via a job. "Downstream of X" = follow source = X.
 # MAGIC - v_job_runs: run outcomes; failed = result_state IN ('FAILED','TIMEDOUT','INTERNAL_ERROR').
 # MAGIC - v_job_cost: DBUs and list cost per job per day. "Wasted cost" = cost on days/jobs with failed runs.
@@ -64,5 +65,6 @@ display(spark.sql(f"SELECT * FROM {fq('v_job_runs')} ORDER BY started_at DESC LI
 # MAGIC **Sample questions:** Which jobs failed most this week? · What is downstream of workspace.doctor.orders_clean?
 # MAGIC · Average o_totalprice per day for the last 7 days · How many incidents were fixed vs dismissed?
 # MAGIC
-# MAGIC Copy the space ID from its URL (`.../genie/rooms/<ID>`) into `DOCTOR_GENIE_SPACE_ID` in `app/app.yaml`
-# MAGIC (and `os.environ["DOCTOR_GENIE_SPACE_ID"] = "<ID>"` before creating a Doctor in notebooks).
+# MAGIC Then attach it to the app: Compute → Apps → lakehouse-doctor → Edit → Resources → Add → **Genie space**,
+# MAGIC permission *Can run*, resource key **`genie-space`** → Save → Deploy. (`app.yaml` reads the ID from it.)
+# MAGIC In notebooks: `os.environ["DOCTOR_GENIE_SPACE_ID"] = "<ID from the space URL>"` before creating a Doctor.
